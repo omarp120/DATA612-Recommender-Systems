@@ -1,0 +1,33 @@
+---
+title: 'DATA612 Recommender System Discussion 1: Spotify'
+author: "Omar Pineda"
+date: "6/11/2020"
+output: html_document
+---
+
+## DATA612 Research Discussion # 1
+
+## Spotify's Recommender System
+
+Spotify's recommender system is the one that I interact with most often as I listen to music throughout the day. I had previously been using Apple Music, but I wanted to discover new songs based on the music that I already liked, so I made the switch to Spotify. I'd say that their recommender system is probably Spotify's biggest selling point, so I am sure that they have invested a lot into building and improving their proprietary algorithms.
+
+Spotify seems to use a hybrid system and the type of recommendations they provide depend on how much information they have for a subscriber, so new users need to input more information to get things rolling. For example, when I first subscribed to Spotify, it was too early for them to create the 6 daily mixes for me since they did not have enough data on my preferences. I went through the artists that I had in my Apple Music account and followed all of them on Spotify. I also actively liked songs when I began streaming during those first few weeks so that I could feed their system more data on me. I may have also been explicitly asked for some of my music preferences as well. This applies aspects of a knowledge-based recommendation system.
+
+Spotify implements collaborative filtering for users and songs so that we're introduced to songs that we may not have been exposed to but other users with similar listening histories have listened to. Applying content-based recommender systems, we are also recommended music by our listening history and the similarities of those songs to other songs based on features, even down to tempo, genre and release date.
+
+Overall, Spotify delivers a great experience, but I do feel that the recommendations begin to stagnate after a while. In order to combat this, I go back to actively "liking" music and skipping songs when I don't want to listen to them rather than letting them continue to play in the background. I often use Spotify streaming as white noise while working, without paying too much attention to what's playing, so this may be a reason why the algorithm gets thrown off and loses specificity. Adding another dimension to this, I'm sure that promotion of artists/advertisements must also play a role in what is recommended to users.
+
+On another note, I recently had an experience with a different recommender system that got things way off-target, and that was enough to have me unsubscribe from their service. So, I'd say that a lot of thought has to go into creating these as they can very well lead to subscriber churn if they get it wrong.
+
+## Attacks on Recommender System
+
+This article "Travis M. Andrews, The Washington Post (2017): Wisdom of the crowd? IMDb users gang up on Christian Bale’s new movie before it even opens" paints an excellent picture on why companies must ensure that their recommender systems are robust. I think a recommender system must strike a balance between making as informed predictions as possible versus keeping some things ambiguous. The surprising thing here is that the concerted attack on the IMDb recommender system probably also affected the film's overall sales as potential viewers may have been deterred due to the poor rating.
+
+Something to consider here is the opposite of what happened in this attack - could artificial reviews also inflate a movie/item's ratings? I can imagine that advertising money could potentially be used to boost ratings on IMDb in order to encourage more people to see the movie based on a false perception.
+
+I would design a system to prevent this type of abuse by:
+
+1. Only allow reviews to be posted after the movie's actual release date
+2. Flag users who have previously engaged in this behaviour and either remove their rating or weigh it differently within the recommendation system
+3. Consider user bias and adjust accordingly
+4. Show recommendations based on ratings by world region
