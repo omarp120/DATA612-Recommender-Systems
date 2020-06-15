@@ -1,0 +1,107 @@
+---
+title: "DATA612 Project 2 Collaborative Filtering"
+author: "Omar Pineda"
+date: "6/11/2020"
+output: html_document
+---
+
+In this project we will implement a recommender system for Amazon Healthcare products applying user based and item based collaborative filtering.
+
+First, we load the necessary libraries for this project.
+
+```{r load}
+library(recommenderlab)
+library(tidyr)
+library(caTools)
+library(ggplot2)
+```
+
+We sourced our data from Amazon's product reviews between May 1996 - July 2014 which can be found in the following link: http://jmcauley.ucsd.edu/data/amazon/links.html
+
+Here we load our dataset of 2.9 million reviews and add column names. The users are identified by unique reviewer IDs and the products are coded with Amazon Standard Identification Numbers (ASINs).
+
+```{r}
+hc <- read.csv("ratings_Health_and_Personal_Care.csv")
+colnames(hc) <-  c('user', 'product', 'rating', 'time') #add column names
+head(hc)
+```
+
+In order to work with a smaller subset of this data, we removed the time column, selected the first 100 rows and converted our table from long to wide so that there would be a row for each reviewer and a column for each product, producing a user-item matrix. We notice that our matrix of ratings is sparse, meaning that there are users and items with few ratings, and this is a common issue in building recommender systems. Our resulting data set has 99 users and 30 healthcare products.
+
+```{r}
+hc2 <- head(hc[, 1:3], n = 100) #remove the time column and select the first 10 rows 
+hc3 <- spread(hc2, product, rating) #convert table from long to wide
+head(hc3)
+```
+
+In order to use the recommenderlab library, we first have to convert our dataframe into a real rating matrix.
+
+```{r}
+hc_matrix <- as.matrix(hc3)
+hc_RRM <- as(hc_matrix, "realRatingMatrix")
+dim(hc_RRM)
+```
+
+We then jump into our ratings data through some exploratory work. Below is the distribution of our user ratings. The most common rating entry is NA as our matrix is sparse, but after that the most frequent rating is a 5 with nearly 75 of them in our matrix. This is followed by a 4 rating and then a 1 rating. This follows the intuition that users tend to rate items that they either really love or strongly dislike.
+
+```{r}
+vector_ratings <- as.vector(hc_RRM@data)
+vector_ratings <- vector_ratings[vector_ratings != 0]
+vector_ratings <- factor(vector_ratings)
+qplot(vector_ratings) + ggtitle("Distribution of ratings for healthcare products on Amazon")
+```
+
+We also plotted the distribution of the average rating that our 30 products received. Most products received high ratings.
+
+```{r}
+average_ratings <- colMeans(hc_RRM)
+qplot(average_ratings) + stat_bin(binwidth = 0.1) + ggtitle("Distribution of the average product rating")
+```
+
+Next, we start to build our recommender system by splitting our data into training and test sets, using 80% of our data to train our engine and holding out 20% to test it.
+
+```{r}
+which_train <- sample(x = c(TRUE, FALSE), size = nrow(hc_RRM), replace = TRUE, prob = c(0.8, 0.2))
+hc_train <- hc_RRM[which_train, ]
+hc_test <- hc_RRM[!which_train, ]
+```
+
+The first model we train applies user-based collaborative filtering. We normalize our ratings to remove bias due to users who tend to give high or low ratings. Normalization makes it such that the average ratings of each user is 0. We also use cosine similarity in order to identify similar users based on the cosine distance between every user-user vector pair. We set the nn parameter to 5 in order to identify the top 5 users that each user is most similar to.
+
+```{r}
+ub_hc <- Recommender(data = hc_train, method = "UBCF", parameter = list(nn = 5, normalize = "center", method = "cosine"))
+ub_hc
+```
+
+Next, we retrieve 5 healthcare product recommendations for each of the 17 users in our test set. 
+
+If we examine the first user, they had only one rating and it was a 5 for product 0978559088. If we search this product's ASIN (https://amazon-asin.com/), we see that it's for "Nutrihill Resveratrol Lozenges". This product is known for "many health benefits such as protecting the heart and circulatory system, lowering cholesterol, and protecting against clots which can cause heart attacks and stroke." The user-based collaborative filtering suggests products such as 0615208479 (Brain Fitness Exercises Software) and 0615406394 (Aphrodite Reborn - Women's Stories of Hope, Courage and Cancer) for this user.
+
+```{r}
+ub_pred <- predict(object = ub_hc, newdata = hc_test, n = 5)
+ub_matrix <- sapply(ub_pred@items, function(x) {colnames(hc_RRM)[x]} )
+
+as(hc_test, "matrix")[1,]
+
+ub_matrix[1]
+```
+
+The second model implements item based collaborative filtering to recommend users items that received similar ratings to the items that the users rated. We normalized our data, looked at the 5 most similar items to each item, and compared items using cosine similarity.
+
+```{r}
+ib_hc <- Recommender(data = hc_train, method = "IBCF", parameter = list(k = 5, normalize = "center", method = "cosine"))
+ib_hc
+```
+
+We then pulled predictions/recommendations for users in our test set using this item based collaborative filtering recommender. Unfortunately, only user #4 received any recommendations, and it was only for one product. This user gave a rating of 5 to product 0898004667 (Peacock Gift Wrapping Paper) and was only recommended product 0898004659 which we were unable to do a reverse ASIN search for.
+
+```{r}
+ib_pred <- predict(object = ib_hc, newdata = hc_test, n = 5)
+ib_matrix <- sapply(ib_pred@items, function(x) {colnames(hc_RRM)[x]} )
+
+as(hc_test, "matrix")[4,]
+
+ib_matrix[4]
+```
+
+Overall, it seems that a user-based collaborative filtering recommender system is more informative here than one that uses item-based collaborative filtering. The former produced 5 recommendations for each of 14 users in our test set while the latter only produced a single item recomendation for one of our users. In future projects we will evaluate our recommender systems more thoroughly using metrics such as RMSE.
