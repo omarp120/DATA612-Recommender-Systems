@@ -1,0 +1,30 @@
+---
+title: 'DATA612 Recommender System Discussion 2: Music Recommendations at Scale with Spark'
+author: "Omar Pineda"
+date: "6/16/2020"
+output: html_document
+---
+
+## DATA612 Research Discussion # 2
+
+## Scaling Music Recommendations with Spark
+
+In this talk (http://www.youtube.com/watch?v=3LBgiFch4_g), Christopher Johnson summarizes Spotify's
+recommender system journey. He starts by reviewing how competitors recommend music to their users, from
+manual curation and tagging by musicologists at Pandora to metadata and lyrical text analysis. Spotify's
+approach is more along the lines of collaborative filtering. I found several things interesting about their
+algorithms as I am an avid Spotify streamer.
+
+Johnson considers both explicit and implicit matrix factorization. The former approximates ratings by the
+product of low dimensional user and movie matrices. He instead favors implicit matrix factorization as it
+uses binary labels for whether a user has or has not streamed a song. It then adds weights as function of
+total streams and minimizes the RMSE, leveraging Hadoop to scale this up.
+
+Hadoop suffers from an input/output bottleneck, so Spark comes to the rescue by caching each iterative step
+in the process. The process can be optimized even further in terms of running times and available space given
+caches depending on the method used. The best method was half gridify which partitions the ratings matrix
+into k user and item blocks. For reference, while Hadoop takes 10 hours, Spark takes 3.5 for full gridify and
+1.5 hours for half gridify.
+
+This talk was from 2014, and Johnson has since left Spotify. I'd be interested in how Spotify has improved on
+this process since then.
