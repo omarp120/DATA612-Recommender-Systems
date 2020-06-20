@@ -1,5 +1,5 @@
 ---
-title: "DATA612 Project 3 Matrix Factorization"
+title: "DATA612 Project 3 Matrix Factorization - SVD"
 author: "Omar Pineda"
 date: "6/18/2020"
 output: html_document
@@ -13,6 +13,7 @@ First, we load the necessary libraries for this project.
 library(recommenderlab)
 library(tidyr)
 library(caTools)
+library(ggplot2)
 ```
 
 We sourced our data from Amazon's product reviews between May 1996 - July 2014 which can be found in the following link: http://jmcauley.ucsd.edu/data/amazon/links.html
@@ -27,11 +28,13 @@ head(hc)
 
 We removed the time column and converted our table from long to wide so that there would be a row for each reviewer and a column for each product, producing a user-item matrix. 
 
-We notice that our matrix of ratings is sparse, meaning that there are users and items with few ratings, and this is a common issue in building recommender systems. Our resulting data set has 99 users and 30 healthcare products.
+Compared to our previous projects, we ingest more reviews than before by taking the first 50,000 reviews in our dataset. We notice that our matrix of ratings is sparse, meaning that there are users and items with few ratings, and this is a common issue in building recommender systems. Our resulting data set has 47,786 users and 2,026 healthcare products.
 
 ```{r}
-hc2 <- spread(hc[, 1:3], product, rating) #convert table from long to wide
-head(hc3)
+hc2 <- head(hc[, 1:3], n = 50000)
+
+hc3 <- spread(hc2, product, rating) #convert table from long to wide
+#head(hc3)
 ```
 
 In order to use the recommenderlab library, we first have to convert our dataframe into a real rating matrix.
@@ -42,90 +45,77 @@ hc_RRM <- as(hc_matrix, "realRatingMatrix")
 dim(hc_RRM)
 ```
 
-We then jump into our ratings data through some exploratory work. Below is the distribution of our user ratings. The most common rating entry is NA as our matrix is sparse, but after that the most frequent rating is a 5 with nearly 75 of them in our matrix. This is followed by a 4 rating and then a 1 rating. This follows the intuition that users tend to rate items that they either really love or strongly dislike.
+We then decrease the sparsity of our matrix by making sure that each individual user and item have at least 3 ratings each. This makes it so that we work with 1,675 users and 1,264 items.
 
 ```{r}
-vector_ratings <- as.vector(hc_RRM@data)
+hc_RRM2 <- hc_RRM[rowCounts(hc_RRM) > 2, colCounts(hc_RRM) > 2]
+dim(hc_RRM2)
+```
+
+We then jump into our ratings data through some exploratory work. Below is the distribution of our user ratings. The second most common rating entry is NA as our matrix is sparse, but before that the most frequent rating is a 5 with nearly 2,500 of them in our matrix. This is followed by a 4 rating and then a 1 rating. This follows the intuition that users tend to rate items that they either really love or strongly dislike.
+
+```{r}
+vector_ratings <- as.vector(hc_RRM2@data)
 vector_ratings <- vector_ratings[vector_ratings != 0]
 vector_ratings <- factor(vector_ratings)
 qplot(vector_ratings) + ggtitle("Distribution of ratings for healthcare products on Amazon")
 ```
 
-We also plotted the distribution of the average rating that our 30 products received. Most products received high ratings.
+We also plotted the distribution of the average rating that our 1,264 products received. Most products received high ratings.
 
 ```{r}
-average_ratings <- colMeans(hc_RRM)
+average_ratings <- colMeans(hc_RRM2)
 qplot(average_ratings) + stat_bin(binwidth = 0.1) + ggtitle("Distribution of the average product rating")
 ```
 
-Next, we start to build our recommender system by splitting our data into training and test sets, using 80% of our data to train our engine and holding out 20% to test it.
+Next, we start to build our recommender system by splitting our data into training and test sets using cross-validation with 4 folds. Out of 1-5 ratings, we decided that the threshold between good and bad ratings was a rating of 3. We also made our "given" parameter 1 as that is the minimum number of ratings that a user has in our dataset.
 
 ```{r}
-which_train <- sample(x = c(TRUE, FALSE), size = nrow(hc_RRM), replace = TRUE, prob = c(0.8, 0.2))
-hc_train <- hc_RRM[which_train, ]
-hc_test <- hc_RRM[!which_train, ]
+percentage_training <- 0.8
+
+min(rowCounts(hc_RRM2))
+
+items_to_keep <- 1
+
+rating_threshold <- 3
+
+eval_sets <- evaluationScheme(data=hc_RRM2, method="cross-validation", k=4, given=items_to_keep, goodRating=rating_threshold)
 ```
 
-The first model we train applies user-based collaborative filtering. We normalize our ratings to remove bias due to users who tend to give high or low ratings. Normalization makes it such that the average ratings of each user is 0. We also use cosine similarity in order to identify similar users based on the cosine distance between every user-user vector pair. We set the nn parameter to 5 in order to identify the top 5 users that each user is most similar to.
+Singular Value Decomposition is a dimensionality reduction matrix factorization technique that decomposes the matrix into the product of its vectors and categorizes users/items. In order to implement SVD we need to make sure that there are no missing values, so we normalize our ratings to remove bias due to users who tend to give high or low ratings. Normalization makes it such that the average ratings of each user is 0. We train this model using normalization as a pre-processing technique.
 
 ```{r}
-ub_hc <- Recommender(data = hc_train, method = "UBCF", parameter = list(nn = 5, normalize = "center", method = "cosine"))
-ub_hc
+svd_rec <- Recommender(data=getData(eval_sets, "train"), method="svd")
 ```
 
-Next, we retrieve 5 healthcare product recommendations for each of the 17 users in our test set. 
-
-If we examine the first user, they had only one rating and it was a 5 for product 0978559088. If we search this product's ASIN (https://amazon-asin.com/), we see that it's for "Nutrihill Resveratrol Lozenges". This product is known for "many health benefits such as protecting the heart and circulatory system, lowering cholesterol, and protecting against clots which can cause heart attacks and stroke." The user-based collaborative filtering suggests products such as 0615208479 (Brain Fitness Exercises Software) and 0615406394 (Aphrodite Reborn - Women's Stories of Hope, Courage and Cancer) for this user.
+We then use this trained model to predict product ratings for our users and evaluated these predictions. The RMSE for this recommender system was 3.12.
 
 ```{r}
-ub_pred <- predict(object = ub_hc, newdata = hc_test, n = 5)
-ub_matrix <- sapply(ub_pred@items, function(x) {colnames(hc_RRM)[x]} )
-
-as(hc_test, "matrix")[1,]
-
-ub_matrix[1]
+svd_pred <- predict(object=svd_rec, newdata=getData(eval_sets, "known"), n=5, type="ratings")
 ```
-
-The second model implements item based collaborative filtering to recommend users items that received similar ratings to the items that the users rated. We normalized our data, looked at the 5 most similar items to each item, and compared items using cosine similarity.
 
 ```{r}
-ib_hc <- Recommender(data = hc_train, method = "IBCF", parameter = list(k = 5, normalize = "center", method = "cosine"))
-ib_hc
+svd_accuracy <- calcPredictionAccuracy(x=svd_pred, data=getData(eval_sets, "unknown"), byUser=FALSE)
+svd_accuracy
 ```
 
-We then pulled predictions/recommendations for users in our test set using this item based collaborative filtering recommender. Unfortunately, only user #4 received any recommendations, and it was only for one product. This user gave a rating of 5 to product 0898004667 (Peacock Gift Wrapping Paper) and was only recommended product 0898004659 which we were unable to do a reverse ASIN search for.
+We compare this SVD recommender engine with one that uses item based collaborative filtering. The latter recommends users items that received similar ratings to the items that the users rated. In this model, we normalized our data, looked at the 5 most similar items to each item, and compared items using cosine similarity.
 
 ```{r}
-ib_pred <- predict(object = ib_hc, newdata = hc_test, n = 5)
-ib_matrix <- sapply(ib_pred@items, function(x) {colnames(hc_RRM)[x]} )
-
-as(hc_test, "matrix")[4,]
-
-ib_matrix[4]
+ib_rec <- Recommender(data=getData(eval_sets, "train"), method = "IBCF", parameter = list(k = 5, normalize = "center", method = "cosine"))
 ```
 
-Overall, it seems that a user-based collaborative filtering recommender system is more informative here than one that uses item-based collaborative filtering. The former produced 5 recommendations for each of 14 users in our test set while the latter only produced a single item recomendation for one of our users. In future projects we will evaluate our recommender systems more thoroughly using metrics such as RMSE.
+This model's predictions using the test set had a RMSE of 2.
 
+```{r}
+ib_pred <- predict(object=ib_rec, newdata=getData(eval_sets, "known"), n=5, type="ratings")
+```
 
-The goal of this assignment is give you practice working with Matrix Factorization techniques.
-Your task is implement a matrix factorization method—such as singular value decomposition (SVD) or
-Alternating Least Squares (ALS)—in the context of a recommender system.
+```{r}
+ib_accuracy <- calcPredictionAccuracy(x=ib_pred, data=getData(eval_sets, "unknown"), byUser=FALSE)
+ib_accuracy
+```
 
-You may approach this assignment in a number of ways. You are welcome to start with an existing
-recommender system written by yourself or someone else. Remember as always to cite your sources,
-so that you can be graded on what you added, not what you found.
+After comparing the RMSE of our recommender engines, we decided that our engine that uses item based collaborative filtering performs better than our engine that uses SVD. As we saw in previous projects, user based collaborative filtering yielded even better results than item based collaborative filtering, so that has been our best engine so far with this dataset of Amazon Healthcare product ratings.
 
-SVD can be thought of as a pre-processing step for feature engineering. You might easily start with
-thousands or millions of items, and use SVD to create a much smaller set of “k” items (e.g. 20 or 70).
-Notes/Limitations:
-
-• SVD builds features that may or may not map neatly to items (such as movie genres or news
-topics). As in many areas of machine learning, the lack of explainability can be an issue).
-• SVD requires that there are no missing values. There are various ways to handle this, including
-(1) imputation of missing values, (2) mean-centering values around 0, or (3) <advanced> using
-a more advance technique, such as stochastic gradient descent to simulate SVD in populating
-the factored matrices.
-• Calculating the SVD matrices can be computationally expensive, although calculating ratings
-once the factorization is completed is very fast. You may need to create a subset of your data
-for SVD calculations to be successfully performed, especially on a machine with a small RAM
-footprint.
+(Note that some of the metric results may differ when these results are published to rpubs)
