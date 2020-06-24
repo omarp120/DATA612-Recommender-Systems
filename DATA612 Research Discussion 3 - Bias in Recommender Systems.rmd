@@ -1,0 +1,43 @@
+---
+title: 'DATA612 Recommender System Discussion 3: Bias in Recommender Systems'
+author: "Omar Pineda"
+date: "6/22/2020"
+output: html_document
+---
+
+## DATA612 Research Discussion # 3
+
+As more systems and sectors are driven by predictive analytics, there is increasing awareness of the possibility and pitfalls of algorithmic discrimination. In what ways do you think Recommender Systems reinforce human bias? Reflecting on the techniques we have covered, do you think recommender systems reinforce or help to prevent unethical targeting or customer segmentation?  Please provide one or more examples to support your arguments.
+
+A few resources:
+
+Evan Estola (2016): When Recommendations Systems Go Bad; MLconf SEA 2016
+
+Rishabh Jain (2016): When Recommendation Systems Go Bad
+
+Moritz Hardt, Eric Price, Nathan Srebro (2016):  Equality of Opportunity in Supervised Learning
+
+## Bias in Recommender Systems
+
+In Evan Estola's talk, "When Recommendations Systems Go Bad", we learn about biases that may become prevalent
+in a recommender system's predictions. For example, Google's recommendation engine bases what it shows you on
+what others who searched for the same topic clicked on, and this may reinforce popular opinions/biases rather
+than be based on facts. Similarly, Amazon may recommend peculiarly suggestive items when you search for
+something as innocent as a kitchen scale rather than suggesting other kitchen items. It's important to
+remember that many times these algorithms are trained so that we engage with them for as long as possible as
+they are tied to the profits of the companies that create them. 
+
+All models should be tested for bias and this is possible by generating test data that holds everything equal
+besides a sensitive feature like race or gender. We can then run the model on this test data and compare how
+the predictions/recommendations differ. It is also suggested to use ensemble models that train sensitive
+features separately from other standard features and then combine the results.
+
+As data science is still relatively novel, there is growing concern over the ethics surrounding it. While
+recommender systems may have been more biased and unethically targeted/segmented users before, we now know
+that each model must be checked for bias as a common practice. There are industries where this will take a
+stronger hold than in others. Ultimately, recommender systems, if trained correctly, may remove a lot of the
+bias that exists in human decisions, but these models will require a lot more work and I am not sure of who
+would push for them. I think that individual consumers should expect more from companies and possibly call
+for them to have diverse ethics committees. Most people currently do not know much about data science and
+treat it as a mysterious black box, so it may be the goverment's responsibility to mandate more scrutiny for
+bias from companies on behalf of its citizens.
