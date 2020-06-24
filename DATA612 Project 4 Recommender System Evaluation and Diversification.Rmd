@@ -1,0 +1,199 @@
+---
+title: "DATA612 Project 4 Evaluating and Diversifying a Recommender System"
+author: "Omar Pineda"
+date: "6/24/2020"
+output: html_document
+---
+
+## Introduction and Data Preparation
+
+In this project we will develop recommender systems for music on Amazon based on ratings and compare them in terms of accuracy and other metrics to choose our best engine.
+
+First, we load the necessary libraries for this project.
+
+```{r load}
+library(recommenderlab)
+library(tidyr)
+library(caTools)
+library(ggplot2)
+library(jsonlite)
+library(purrr)
+library(data.table)
+library(dplyr)
+```
+
+We sourced our data from Amazon's product reviews between May 1996 - July 2014 which can be found in the following link: http://jmcauley.ucsd.edu/data/amazon/links.html
+
+Here we load our dataset of 64,706 song reviews from a 5-core dataset, meaning that each reviewer and item have at least 5 reviews. This helps so that our matrix is not as sparse. The users are identified by unique reviewer IDs and the songs/albums are coded with Amazon Standard Identification Numbers (ASINs). We have several columns for our reviews including the ratings, how many "helpful" thumbs up they got, the review time and the unstructured text for the review.
+
+```{r}
+#hc <- read.csv("ratings_Digital_Music.csv")
+#colnames(hc) <-  c('user', 'song', 'rating', 'time') #add column names
+#head(hc)
+
+am <- readLines("Digital_Music_5.json") %>% map(fromJSON) %>% map(as.data.table) %>% rbindlist(fill = TRUE)
+am2 <- subset(am, select = -c(helpful))
+am3 <- am2 %>% distinct()
+head(am)
+```
+
+We focused on the reviewer, song and rating columns and converted our table from long to wide so that there would be a row for each reviewer and a column for each song/album, producing a user-item matrix. Our resulting data set has 5,541 users and 3,569 songs/albums.
+
+```{r}
+am4 <- subset(am3, select = c(reviewerID, asin, overall))
+colnames(am4) <-  c('user', 'song', 'rating')
+head(am4)
+```
+
+```{r}
+am5 <- spread(am4, song, rating) #convert table from long to wide
+dim(am5)
+```
+
+In order to use the recommenderlab library, we first have to convert our dataframe into a real rating matrix.
+
+```{r}
+hc_matrix <- as.matrix(am5)
+hc_RRM <- as(hc_matrix, "realRatingMatrix")
+dim(hc_RRM)
+```
+
+## Exploration
+
+We then jump into our music ratings data through some exploratory work. Below is the distribution of our user ratings. The most frequent rating is a 5 with nearly 31,000 of them in our matrix. This is followed by a 4 rating and then 3, 2, and 1 ratings in descending order.
+
+```{r}
+vector_ratings <- as.vector(hc_RRM@data)
+vector_ratings <- vector_ratings[vector_ratings != 0]
+vector_ratings <- factor(vector_ratings)
+qplot(vector_ratings) + ggtitle("Distribution of ratings for songs/albums on Amazon")
+```
+
+We also plotted the distribution of the average rating that the 3,569 songs/albums received. Most music received high ratings.
+
+```{r}
+average_ratings <- colMeans(hc_RRM)
+qplot(average_ratings) + stat_bin(binwidth = 0.1) + ggtitle("Distribution of the average music rating")
+```
+
+## Data Splitting
+
+Next, we start to build our recommender system by splitting our data into training and test sets using cross-validation with 4 folds. Out of 1-5 ratings, we decided that the threshold between good and bad ratings was a rating of 3. We also made our "given" parameter 5 as the the minimum number of ratings that a user has in our dataset is 6 and we want to make sure that our users have items to test the model.
+
+```{r}
+percentage_training <- 0.8
+
+min(rowCounts(hc_RRM))
+
+items_to_keep <- 5
+
+rating_threshold <- 3
+
+eval_sets <- evaluationScheme(data=hc_RRM, method="cross-validation", k=4, given=items_to_keep, goodRating=rating_threshold)
+```
+
+## Singular Value Decomposition
+
+Singular Value Decomposition is a dimensionality reduction matrix factorization technique that decomposes the matrix into the product of its vectors and categorizes users/items. In order to implement SVD we need to make sure that there are no missing values, so we normalize our ratings to remove bias due to users who tend to give high or low ratings. Normalization makes it such that the average ratings of each user is 0. We train this model using normalization as a pre-processing technique.
+
+```{r}
+svd_rec <- Recommender(data=getData(eval_sets, "train"), method="svd")
+```
+
+We then use this trained model to predict music ratings for our users and evaluate these predictions. The RMSE for this recommender system was 1.09.
+
+```{r}
+svd_pred <- predict(object=svd_rec, newdata=getData(eval_sets, "known"), n=5, type="ratings")
+```
+
+```{r}
+svd_accuracy <- calcPredictionAccuracy(x=svd_pred, data=getData(eval_sets, "unknown"), byUser=FALSE)
+svd_accuracy
+```
+
+We compare this SVD recommender engine with one that uses item based collaborative filtering. 
+
+## Item Based Collaborative Filtering
+
+IBCF recommends users items that received similar ratings to the items that the users rated. In this model, we normalized our data, looked at the 5 most similar items to each item, and compared items using cosine similarity. We normalize our ratings to remove bias due to users who tend to give high or low ratings. Normalization makes it such that the average ratings of each user is 0. We also use cosine similarity in order to identify similar items based on the cosine distance between every item-item vector pair.
+
+```{r}
+ib_rec <- Recommender(data=getData(eval_sets, "train"), method = "IBCF", parameter = list(k = 5, normalize = "center", method = "cosine"))
+```
+
+This model's predictions using the test set had a RMSE of 1.21, which doesn't perform as well as the SVD engine.
+
+```{r}
+ib_pred <- predict(object=ib_rec, newdata=getData(eval_sets, "known"), n=5, type="ratings")
+```
+
+```{r}
+ib_accuracy <- calcPredictionAccuracy(x=ib_pred, data=getData(eval_sets, "unknown"), byUser=FALSE)
+ib_accuracy
+```
+
+## User Based Collaborative Filtering
+
+We also train a UBCF model which finds similarities between users based on their ratings. We set the nn parameter to 5 in order to identify the top 5 users that each user is most similar to. We normalized our data and used cosine similarity.
+
+```{r}
+ub_rec <- Recommender(data=getData(eval_sets, "train"), method = "UBCF", parameter = list(nn = 5, normalize = "center", method = "cosine"))
+```
+
+This model's predictions using the test set had a RMSE of 1.28, which doesn't perform as well as either the IBCF engine or the SVD engine.
+
+```{r}
+ub_pred <- predict(object=ub_rec, newdata=getData(eval_sets, "known"), n=5, type="ratings")
+```
+
+```{r}
+ub_accuracy <- calcPredictionAccuracy(x=ub_pred, data=getData(eval_sets, "unknown"), byUser=FALSE)
+ub_accuracy
+```
+
+## Introducing Novelty to the User Experience
+
+We can also adapt some of the code from "Building a Recommendation System with R" to plot the ROC curve for our different recommender engines. Other than the models that we previously discussed, we also consider a "random" model to implement some novelty into the music recommendations that are produced rather than only recommend to users the same type of music as that of songs they rated highly. I appreciate this when streaming through Spotify's recommender system as the recommendations often begin to "stagnate". This fourth model randomly choses items for comparison.
+
+```{r}
+models_to_evaluate <- list(
+IBCF_cos = list(name = "IBCF", param = list(method = "cosine", k = 5, normalize = "center")),
+UBCF_cos = list(name = "UBCF", param = list(method = "cosine",  nn = 5, normalize = "center")),
+SVD = list(name = "svd"),
+random = list(name = "RANDOM", param=NULL)
+)
+
+n_recommendations <- c(1, 5, seq(1, 10, 1))
+
+list_results <- evaluate(x = eval_sets, method = models_to_evaluate, n = n_recommendations)
+
+class(list_results)
+```
+
+```{r}
+avg_matrices <- lapply(list_results, avg)
+```
+
+We can see the precision, recall, TPR, and FPR for each model for different values of n (the number of recommendations that are produced by the models).
+
+```{r}
+avg_matrices$IBCF_cos[3:12, 5:8]
+avg_matrices$UBCF_cos[3:12, 5:8]
+avg_matrices$SVD[3:12, 5:8]
+avg_matrices$random[3:12, 5:8]
+```
+
+Below is the ROC curves for each model. Again, the SVD model performs the best as it has the largest AUC (area under the curve). In comparison, our new random model performs the worst.
+
+```{r}
+plot(list_results, annotate = 1, legend = "topleft") + title("ROC curve")
+```
+
+
+## Conclusion
+
+After comparing the RMSE and AUC of our recommender engines, we found that the engine that uses SVD performs better than engines that implement IBCF, UBCF, or random music recommendations. We may also want to consider diversifying recommendations by, for example, changing a random set of 15% of our 1-star rating predictions to 3-star ratings. In future projects, we could also use unstructured free text review data to build a hybrid model that accounts for content.
+
+In online evaluation we would have an A/B test with some users interacting with one recommender system and a different set of users interacting with another recommender system. In this scenario, we would benefit from continously refining our recommender engine using click-through rates as a performance metric.
+
+(Note that some of the metric results may differ when these results are published to rpubs)
