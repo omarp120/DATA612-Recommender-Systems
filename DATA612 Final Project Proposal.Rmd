@@ -5,16 +5,33 @@ date: "6/24/2020"
 output: html_document
 ---
 
-Dataset: We will be using a dataset of 2.9 million Amazon reviews to recommend Health and Personal Care products to users. These reviews were made between May 1996 - July 2014 and can be found through the following link: http://jmcauley.ucsd.edu/data/amazon/links.html
+Dataset: We will be using a dataset of 2.9 million Amazon reviews to recommend Health and Personal Care products to
+users. These reviews were made between May 1996 - July 2014 and can be found through the following link:
+http://jmcauley.ucsd.edu/data/amazon/links.html
 
-Data Preparation: The source provides the data in a long format, so we will have to transform it into a wide table. This has been a challenge for my computer when working with more than 60,000 ratings, so we will have to do this in batches or explore some other alternative. Our matrix will likely be sparse as users will only have ratings for a few of the many items that have been reviewed, so we will define a minimum number of ratings that each user and item should have. We will also consider using the review time in our model, possibly adding different weights to ratings depending on when it was done. For this, we will have to convert the review time from unix to standard time. Perhaps reviews in the daytime should be weighted more favorably then those from the nightime or vice versa. We could also consider seasonality if we have the date of the review.
+Data Preparation: The source provides the data in a long format, so we will have to transform it into a wide table. This
+has been a challenge for my computer when working with more than 60,000 ratings, so we will have to do this in batches or
+explore some other alternative. Our matrix will likely be sparse as users will only have ratings for a few of the many
+items that have been reviewed, so we will define a minimum number of ratings that each user and item should have. We will
+also consider using the review time in our model, possibly adding different weights to ratings depending on when it was
+done. For this, we will have to convert the review time from unix to standard time. Perhaps reviews in the daytime should
+be weighted more favorably then those from the nightime or vice versa. We could also consider seasonality if we have the
+date of the review.
 
-Exploratory Visualizations: An exploratory plot will show the distribution of 1-5 ratings and another visualization will show the distribution of average ratings for our items. We could possibly look at this for different times that the review was made as well.
+Exploratory Visualizations: An exploratory plot will show the distribution of 1-5 ratings and another visualization will
+show the distribution of average ratings for our items. We could possibly look at this for different times that the
+review was made as well.
 
-Train and Test sets: We will split our data into training and test sets, using 80% of our data to train our models and holding out 20% to test them. In the evaluation scheme, we will use cross-validation with 4 folds in order to be able to evaluate our models more robustly.
+Train and Test sets: We will split our data into training and test sets, using 80% of our data to train our models and
+holding out 20% to test them. In the evaluation scheme, we will use cross-validation with 4 folds in order to be able to
+evaluate our models more robustly.
 
-Models: We will consider IBCF, UBCF and SVD models, tuning each of them to compare variations in parameters such as the similarity method and the number of neighbors used in order to optimize performance.
+Models: We will consider IBCF, UBCF and SVD models, tuning each of them to compare variations in parameters such as the
+similarity method and the number of neighbors used in order to optimize performance.
 
-Evaluation: We will evaluate the different recommender system options by calculating and comparing metrics such as RMSE and plotting the ROC curve to determine the AUC. We will also compare our model with one that diversifies our ratings by bumping up 15% of our 1-star ratings to be 3-star ratings.
+Evaluation: We will evaluate the different recommender system options by calculating and comparing metrics such as RMSE
+and plotting the ROC curve to determine the AUC. We will also compare our model with one that diversifies our ratings by
+bumping up 15% of our 1-star ratings to be 3-star ratings.
 
-Although I have not used Spark before, I will use this distributed computing method to work with my large dataset. I look forward to learning more about Spark in next week's content.
+Although I have not used Spark before, I will use this distributed computing method to work with my large dataset. I look
+forward to learning more about Spark in next week's content.
