@@ -7,7 +7,11 @@ output: html_document
 
 ## DATA612 Research Discussion # 3
 
-As more systems and sectors are driven by predictive analytics, there is increasing awareness of the possibility and pitfalls of algorithmic discrimination. In what ways do you think Recommender Systems reinforce human bias? Reflecting on the techniques we have covered, do you think recommender systems reinforce or help to prevent unethical targeting or customer segmentation?  Please provide one or more examples to support your arguments.
+As more systems and sectors are driven by predictive analytics, there is increasing awareness of the
+possibility and pitfalls of algorithmic discrimination. In what ways do you think Recommender Systems
+reinforce human bias? Reflecting on the techniques we have covered, do you think recommender systems
+reinforce or help to prevent unethical targeting or customer segmentation?  Please provide one or more
+examples to support your arguments.
 
 A few resources:
 
