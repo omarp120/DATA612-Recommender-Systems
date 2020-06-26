@@ -1,0 +1,45 @@
+---
+title: 'DATA612 Recommender System Discussion 4: Mitigating Recommender System Harm'
+author: "Omar Pineda"
+date: "6/25/2020"
+output: html_document
+---
+
+## DATA612 Research Discussion # 4
+
+Read one or more of the articles below and consider how to counter the radicalizing effects of recommender systems or
+ways to prevent algorithmic discrimination.
+
+Renee Diresta, Wired.com (2018): Up Next: A Better Recommendation System
+
+Zeynep Tufekci, The New York Times (2018): YouTube, the Great Radicalizer
+
+Sanjay Krishnan, Jay Patel, Michael J. Franklin, Ken Goldberg (n/a): Social Influence Bias in Recommender Systems: A
+Methodology for Learning, Analyzing, and Mitigating Bias in Ratings
+
+## Mitigating the Harm of Recommender Systems
+
+I think that a big problem with the radicalization of recommender systems is that they do so very rapidly, sometimes so
+rapidly that the user notices and is actually taken aback. Perhaps it would be even more dangerous if this happened
+more gradually and went under the radar. Techniques such as adding novelty, serendipity, reweights and diversity should
+be implemented early on and in each iteration of the recommender engine in order to create more balance throughout the
+user experience. Recommender engines should also be consistently tested for bias rather than allow them to engage in
+feedback loops that lead users down rabbit holes. It would also help to ensure that the teams that develop these
+algorithms be diverse so that people from different walks of life can check for bias. Ethics committees in
+analytics/data science teams would also mitigate potential harm. These committees are especially necessary in sensitive
+areas that may not have as much experience working with data to begin with and are implementing these types of
+algorithms. Misinformed implementations of these algorithms can have systemic long term effects on communities.
+
+While these algorithms may be built to optimize a set of KPIs centered around profits, a KPI for the business should
+definitely have an ethics component, but this would most likely come at a cost to profits. Policies concerning consumer
+rights should incentivize, or require, additional oversight for algorithm ethics. A lot of this discussion reminds me
+of a quote that goes by "if you're not paying for it, you are the product". It is difficult to demand for fairness out
+of something like Youtube which comes at no cost (at least monetarily) to us and that we ourselves choose to interact
+with.
+
+I'd like to end this discussion with a quote from a book I read a couple of years ago to emphasize that the formation
+of online communities that are formed due recommender systems translate over to real world communities as well. In his
+1983 book titled 'Imagined Communities', Benedict Anderson introduces the concept of an imagined community. It is
+“imagined because members of even the smallest nation will never know most of their fellow members, meet them, or even
+hear of them, yet in the minds of each lives the image of their communion." Nearly 40 years later, we are seeing
+manifestations of these imagined communities as developed, facilitated, and sometimes taken to extremes by algorithms.
