@@ -1,0 +1,215 @@
+---
+title: 'DATA612 Final Project - Amazon Health and Personal Care Product Recommender Engine'
+author: "Omar Pineda"
+date: "6/24/2020"
+output: html_document
+---
+
+## Introduction
+
+In this project we will implement a recommender system for Amazon Health and Personal Care products to predict items that a consumer will likely buy given how they have rated other items. These products can range from vitamins to books. We will also consider holiday purchases that are likely gifts that a consumer bought for others rather than for themselves.
+
+YouTube presentation: https://youtu.be/y2nKJuzoPPQ
+
+## Load Libraries
+
+First, we load the necessary libraries for this project.
+
+```{r load}
+library(recommenderlab)
+library(tidyr)
+library(caTools)
+library(ggplot2)
+library(sparklyr)
+library(tictoc)
+library(anytime)
+```
+
+## Data Preparation
+
+We sourced our data from Amazon's product reviews between May 1996 - July 2014 which can be found at the following link: http://jmcauley.ucsd.edu/data/amazon/links.html
+
+Here we load our dataset of 2.9 million reviews and add column names. The users are identified by unique reviewer IDs and the products are coded with Amazon Standard Identification Numbers (ASINs). We can search for product by their ASIN using the following link: https://amazon-asin.com/
+
+```{r}
+hc <- read.csv("ratings_Health_and_Personal_Care.csv")
+colnames(hc) <-  c('user', 'product', 'rating', 'time') #add column names
+head(hc)
+```
+
+We will also incorporate the review time into our model by weighing ratings by the time of day that they were done. In order to do this, we first have to convert the review time from unix to standard time using the 'anytime' library.
+
+```{r}
+hc$time <- anytime(hc$time)
+head(hc)
+```
+
+According to SaleCycle's 2020 Ecommerce Stats Report (https://www.thedrum.com/opinion/2020/02/27/what-are-the-peak-times-online-shopping), online sale volumes are consistently high between the hours of 3-10pm compared to other times of the day. So, assuming that 3-10pm is the regular time to be interacting with an ecommerce site, we will weigh these ratings higher. Ratings outside of this time could presumably have been less thought out and done at a time when the consumer may not have had as much time to engage with the site, for example during a commute or while at work. Ratings during these times should thus be weighted lower.
+
+To implement these weights, we first extract the hour of day from the review's timestamp. Unfortunately, we noticed that the only two times for any of the ratings in our dataset were 7pm and 8pm, so we have to pivot to some other type of timing-based weight here. Perhaps this concept can be applied on a different dataset that has more variation in the hour of day for reviews.
+
+```{r}
+hc$hourOfReview <- format(hc$time, "%H")
+unique(hc$hourOfReview)
+```
+
+Instead we will look at seasonality in terms of the month that the rating was done. We will weigh holiday ratings lower because these are likely purchases that the consumer made for somebody else rather than for themselves, and we want the recommender system to suggest items that the user would purchase year-round. Also, the holiday purchases may throw the model off as a consumer may be buying different types of products for different people every year.
+
+We weigh ratings that occur during the holidays (months 11, 12, and 1) 50% lower than ratings that occur during other months of the year.
+
+```{r}
+hc2 <- hc
+#extract month of the review and convert to numeric
+hc2$monthOfReview <- format(hc$time, "%m")
+hc2$monthOfReview <- as.numeric(hc2$monthOfReview)
+
+#determine weight by month: .5 weight for months November, December, and January, and weight of 1 for all other months
+hc2$weight[hc2$monthOfReview %in% c(11,12,1)] <- 0.5
+hc2$weight <- hc2$weight %>% replace_na(1)
+
+#calculate weighted rating
+hc2$weightedRating <- hc2$rating * hc2$weight
+
+head(hc2, n=100)
+```
+
+The source provides the data in a long format, and in previous projects we had transformed it into a wide table in order to convert it into a realRatingMatrix for use with the recommenderLab library. This has presented challenges when working with more than 60,000 ratings, so we leverage sparklyr, an R interface with Apache Spark, to implement this recommender system more efficiently.
+
+## Distributed Recommender System with Spark
+
+Next, we improve engine performance and processing time by implementing a distributed recommender system using Spark. We do so by creating a Spark connection in local mode. Alternatively, we could have connected to a cloud service.
+
+```{r}
+sc <- spark_connect(master = "local")
+```
+
+We make a copy of the long version of our ratings data and convert the product ASINs and user IDs into integers since Spark requires them to be in this format for processing.
+
+```{r}
+hc2$user <- as.integer(as.factor(hc2$user))
+hc2$product <- as.integer(as.factor(hc2$product))
+```
+
+## Data Splitting and Copy to Spark
+
+Here we split our data into training and test sets, holding out 20% to test our models and 80% to train them.
+
+```{r}
+sample <- sample(x = c(TRUE, FALSE), size = nrow(hc2), replace = TRUE, prob = c(0.8, 0.2))
+hc_train <- hc2[sample, ]
+hc_test <- hc2[!sample, ]
+```
+
+Next, we copy our training and set sets over to Spark.
+
+```{r}
+sp_train <- sdf_copy_to(sc, hc_train, "train_ratings", overwrite = TRUE)
+sp_test <- sdf_copy_to(sc, hc_test, "test_ratings", overwrite = TRUE)
+```
+
+## Alternating Least Squares Model without Holiday Weighting on Ratings
+
+Alternating Least Squares is a matrix factorization technique that helps reduce the dimensionality of our ratings matrix. It is similar to singular value decomposition but used for predicting implict rather than explicit data. ALS is commonly used for large scale collaborative filtering engines.
+
+Here, we implement a recommender engine that does not apply the holiday penalty weight on the ratings.
+
+```{r}
+tic()
+als_rec_sp_orig <- ml_als(sp_train, max_iter = 5, rating_col = "rating", user_col = "user", item_col = "product")
+sp_train_time_orig <- toc(quiet = TRUE)
+sp_train_time2_orig <- sp_train_time_orig$toc - sp_train_time_orig$tic
+sp_train_time2_orig
+```
+
+The RMSE for the ALS model's predictions is 4.33. It takes 15.33 seconds to train this model and 4.78 seconds to generate predictions.
+
+```{r}
+tic()
+als_pred_sp_orig <- ml_transform(als_rec_sp_orig, sp_test) %>% collect()
+sp_predict_time_orig <- toc(quiet = TRUE)
+sp_predict_time2_orig <- sp_predict_time_orig$toc - sp_predict_time_orig$tic
+sp_predict_time2_orig
+
+als_pred_sp_orig <- als_pred_sp_orig[!is.na(als_pred_sp_orig$prediction), ]
+
+mse_sp_orig <- mean((als_pred_sp_orig$rating - als_pred_sp_orig$prediction)^2)
+rmse_sp_orig <- sqrt(mse_sp_orig)
+rmse_sp_orig
+```
+
+Next, we will see how an ALS model turns out if we apply weights to the ratings that penalize them if they are made during the holidays.
+
+## Alternating Least Squares Model with Holiday Weighted Ratings
+
+Here, we train an ALS model using the weighted ratings that we discussed in the data preparation section.
+
+```{r}
+tic()
+als_rec_sp <- ml_als(sp_train, max_iter = 5, rating_col = "weightedRating", user_col = "user", item_col = "product")
+sp_train_time <- toc(quiet = TRUE)
+sp_train_time2 <- sp_train_time$toc - sp_train_time$tic
+sp_train_time2
+```
+
+The RMSE for the ALS model's predictions is 3.86. It takes 18.02 seconds to train this model and 6.34 seconds to generate predictions. This model performs better than the model without the holiday penalty/weight on ratings as it has a lower RMSE.
+
+```{r}
+tic()
+als_pred_sp <- ml_transform(als_rec_sp, sp_test) %>% collect()
+sp_predict_time <- toc(quiet = TRUE)
+sp_predict_time2 <- sp_predict_time$toc - sp_predict_time$tic
+sp_predict_time2
+
+als_pred_sp <- als_pred_sp[!is.na(als_pred_sp$prediction), ]
+
+mse_sp <- mean((als_pred_sp$weightedRating - als_pred_sp$prediction)^2)
+rmse_sp <- sqrt(mse_sp)
+rmse_sp
+```
+
+## Disconnect Spark
+
+Once we are done using it, we disconnect our Spark connection.
+
+```{r}
+spark_disconnect(sc)
+```
+
+## Predictions
+
+Next, we look at some of the predictions that our chosen model makes. Here, we focus on a random user with ID #1567061. Our model predicts that they gave item #38 a 3.934 rating and their actual rating for it was a 5.
+
+```{r}
+pred <- data.frame(als_pred_sp)
+head(pred[which(pred$user == 1567061),], n = 20)
+
+#head(pred, n = 20)
+```
+
+We can go back to the original dataset and look at all of the ratings for this user. We notice that all of this user's ratings were 5 and that they all were made on the same day.
+
+```{r}
+head(hc2[which(hc2$user == 1567061),], n = 20)
+```
+
+We should also look at a user who made at least one rating during the holidays, like the user with ID # 1142548. They had rated an item with a 3 in December and our model predicted that they would rate it as 2.56, so it is great that the weight worked and brought this predicted rating value down. This makes it so that other items with higher predicted ratings will be suggested before this item by the recommender engine.
+
+```{r}
+head(pred[which(pred$user == 1142548),], n = 20)
+```
+
+We can look at all of this user's ratings as well. All but one of them was made during the holidays, and it turns out that the non-holiday rating was a 5 -- one of their highest ratings pre-weights. After applying the weight, this non-holiday item has the highest rating. It makes sense that we would weigh this rating more heavily when suggesting general year-round products to this user.
+
+```{r}
+head(hc2[which(hc2$user == 1142548),], n = 20)
+```
+
+## Conclusion
+
+Spark has allowed us to work with 2.9 million ratings to create a recommender engine for Amazon Health and Personal Care products. After comparing the RMSE of our recommender engines, we found that when implementing an ALS engine using Spark's distributed platform, a model that penalizes ratings from the holiday months performs better than a model that does not have these holiday specifiic adverse weights. The former had a RMSE of 3.86 while the latter had a RMSE of 4.33. While our processing times were on a local instance of Spark, these could be further optimized if working in a cloud environment.
+
+One of the biggest benefits of using Spark is that we were able to get around reformatting our dataframe from long to wide as we would have required for use with the recommenderLab library. Spark's implementation is a bit more hands on, at least in installing it, but the benefits seem to outweigh the extra steps. One downside of working in the cloud to make things faster is the associated monetary cost.
+
+Future recommender engines can attempt to look at the time of day that the rating was completed, as we originally tried to do before pivoting to weights dependent on the month of the year. We could also look specifically at holiday ratings to train an engine that recommends products based off of those ratings only during the holiday seasons and use the engine from this project during all other times. We can also add some spontaneity to our ratings by possibly bumping up 15% of our 1-star ratings to be 3-star ratings so that users are sometimes suggested novel items that they may still enjoy.
+
+(Note that some of the metric results may differ when these results are published to rpubs)
